@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import Scene from "./components/Scene";
 import { type RubikCubeHandle } from "./components/RubikCube";
-import { getNextCubeMove } from "@maker/core";
+import { getNextCubeMove, type CubeMove } from "@maker/core";
 import "./App.css";
 
 function App() {
@@ -144,17 +144,39 @@ function App() {
               setAiMessage("");
               
               getNextCubeMove(apiKey)
-                .then((moveExplanation) => {
-                  console.log("Next move:", moveExplanation);
+                .then((move: CubeMove) => {
+                  console.log("Next move:", move);
                   setIsStreaming(false);
-                  setAiMessage(moveExplanation);
-                  // Auto-hide after 10 seconds
+                  
+                  // Format move display
+                  const moveNotation = move.prime ? `${move.face}'` : move.face;
+                  const moveText = move.explanation 
+                    ? `${moveNotation} - ${move.explanation}`
+                    : `Executing move: ${moveNotation}`;
+                  
+                  setAiMessage(moveText);
+                  
+                  // Wait for cube to finish any current animation, then execute the move
+                  const executeMove = () => {
+                    if (cubeRef.current && !cubeRef.current.isAnimating()) {
+                      cubeRef.current.rotate(move.face, move.prime);
+                      console.log(`Executed move: ${moveNotation}`);
+                    } else {
+                      // Retry after a short delay if cube is still animating
+                      setTimeout(executeMove, 100);
+                    }
+                  };
+                  
+                  // Small delay to ensure cube is ready
+                  setTimeout(executeMove, 200);
+                  
+                  // Auto-hide after 5 seconds
                   setTimeout(() => {
                     setShowMessage(false);
                     setTimeout(() => {
                       setAiMessage("");
                     }, 500);
-                  }, 10000);
+                  }, 5000);
                 })
                 .catch((error) => {
                   console.error("Failed to get next cube move:", error);
