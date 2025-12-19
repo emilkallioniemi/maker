@@ -6,7 +6,16 @@ import {
   forwardRef,
 } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Group, Euler, Quaternion, Vector3, Matrix4 } from "three";
+import {
+  Group,
+  Euler,
+  Quaternion,
+  Vector3,
+  Matrix4,
+  MeshStandardMaterial,
+} from "three";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { useMemo } from "react";
 
 // Colors for each face of the Rubik's cube (standard color scheme)
 const COLORS = {
@@ -170,6 +179,16 @@ interface CubieProps {
 function Cubie({ cubelet, animationRotation }: CubieProps) {
   const groupRef = useRef<Group>(null);
 
+  // Create materials array for each face
+  const materials = useMemo(() => {
+    return cubelet.colors.map((color) => new MeshStandardMaterial({ color }));
+  }, [cubelet.colors]);
+
+  // Create rounded box geometry
+  const geometry = useMemo(() => {
+    return new RoundedBoxGeometry(0.9, 0.9, 0.9, 2, 0.05);
+  }, []);
+
   useFrame(() => {
     if (!groupRef.current) return;
 
@@ -191,15 +210,7 @@ function Cubie({ cubelet, animationRotation }: CubieProps) {
 
   return (
     <group ref={groupRef} matrixAutoUpdate={false}>
-      <mesh>
-        <boxGeometry args={[0.9, 0.9, 0.9]} />
-        <meshStandardMaterial color={cubelet.colors[0]} attach="material-0" />
-        <meshStandardMaterial color={cubelet.colors[1]} attach="material-1" />
-        <meshStandardMaterial color={cubelet.colors[2]} attach="material-2" />
-        <meshStandardMaterial color={cubelet.colors[3]} attach="material-3" />
-        <meshStandardMaterial color={cubelet.colors[4]} attach="material-4" />
-        <meshStandardMaterial color={cubelet.colors[5]} attach="material-5" />
-      </mesh>
+      <mesh geometry={geometry} material={materials} />
     </group>
   );
 }
