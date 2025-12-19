@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
 export default defineConfig({
+  envDir: '../../', // Load .env files from monorepo root
   plugins: [
     react({
       babel: {
