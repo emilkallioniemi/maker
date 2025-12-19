@@ -13,6 +13,22 @@ const COLORS = {
   black: '#1a1a1a',
 }
 
+// Color to letter mapping for state representation
+const COLOR_TO_LETTER: Record<string, string> = {
+  [COLORS.white]: 'W',
+  [COLORS.yellow]: 'Y',
+  [COLORS.red]: 'R',
+  [COLORS.orange]: 'O',
+  [COLORS.blue]: 'B',
+  [COLORS.green]: 'G',
+  [COLORS.black]: 'X',
+}
+
+// Get color letter from hex
+const getColorLetter = (color: string): string => {
+  return COLOR_TO_LETTER[color] || 'X'
+}
+
 // Standard cube face colors based on position
 const getFaceColors = (x: number, y: number, z: number) => {
   const colors = [
@@ -170,12 +186,136 @@ function Cubie({ cubelet, animationRotation }: CubieProps) {
   )
 }
 
+// Cube state representation (6 faces, each 3x3 grid)
+export interface CubeState {
+  U: string[][] // Up (Top) face
+  D: string[][] // Down (Bottom) face
+  F: string[][] // Front face
+  B: string[][] // Back face
+  R: string[][] // Right face
+  L: string[][] // Left face
+}
+
+// Get the color facing outward for a cubelet on a specific face
+const getFaceColor = (cubelet: CubeletState, face: Face): string => {
+  const pos = cubelet.position
+  const quat = cubelet.quaternion
+  
+  // Face direction vectors in world space
+  const faceDirs: Record<Face, Vector3> = {
+    U: new Vector3(0, 1, 0),   // Up
+    D: new Vector3(0, -1, 0),  // Down
+    F: new Vector3(0, 0, 1),   // Front
+    B: new Vector3(0, 0, -1),  // Back
+    R: new Vector3(1, 0, 0),    // Right
+    L: new Vector3(-1, 0, 0),  // Left
+  }
+  
+  // Local face direction vectors (before rotation)
+  // colors[0]=Right(+X), [1]=Left(-X), [2]=Top(+Y), [3]=Bottom(-Y), [4]=Front(+Z), [5]=Back(-Z)
+  const localDirs: Vector3[] = [
+    new Vector3(1, 0, 0),   // Right
+    new Vector3(-1, 0, 0),  // Left
+    new Vector3(0, 1, 0),   // Top
+    new Vector3(0, -1, 0),  // Bottom
+    new Vector3(0, 0, 1),   // Front
+    new Vector3(0, 0, -1),   // Back
+  ]
+  
+  const targetDir = faceDirs[face]
+  
+  // Transform target direction to local space
+  const invQuat = quat.clone().invert()
+  const localTarget = targetDir.clone().applyQuaternion(invQuat)
+  
+  // Find which local direction is closest to the target
+  let bestMatch = 0
+  let bestDot = localDirs[0].dot(localTarget)
+  
+  for (let i = 1; i < 6; i++) {
+    const dot = localDirs[i].dot(localTarget)
+    if (dot > bestDot) {
+      bestDot = dot
+      bestMatch = i
+    }
+  }
+  
+  return cubelet.colors[bestMatch]
+}
+
+// Get cube state from cubelets
+const getCubeState = (cubelets: CubeletState[]): CubeState => {
+  const state: CubeState = {
+    U: [[], [], []],
+    D: [[], [], []],
+    F: [[], [], []],
+    B: [[], [], []],
+    R: [[], [], []],
+    L: [[], [], []],
+  }
+  
+  // For each face, get the 9 cubelets on that face
+  const faceLayers: Record<Face, { axis: Axis; layer: number }> = {
+    U: { axis: 'y', layer: 1 },
+    D: { axis: 'y', layer: -1 },
+    F: { axis: 'z', layer: 1 },
+    B: { axis: 'z', layer: -1 },
+    R: { axis: 'x', layer: 1 },
+    L: { axis: 'x', layer: -1 },
+  }
+  
+  for (const [face, { axis, layer }] of Object.entries(faceLayers) as [Face, { axis: Axis; layer: number }][]) {
+    const faceCubelets = cubelets.filter(c => Math.round(c.position[axis]) === layer)
+    
+    // Sort cubelets by position to create 3x3 grid
+    // For U/D: sort by z then x
+    // For F/B: sort by y then x
+    // For R/L: sort by y then z
+    faceCubelets.sort((a, b) => {
+      if (axis === 'y') {
+        // U/D: sort by z (desc), then x (asc)
+        if (Math.round(b.position.z) !== Math.round(a.position.z)) {
+          return Math.round(b.position.z) - Math.round(a.position.z)
+        }
+        return Math.round(a.position.x) - Math.round(b.position.x)
+      } else if (axis === 'z') {
+        // F/B: sort by y (desc), then x (asc)
+        if (Math.round(b.position.y) !== Math.round(a.position.y)) {
+          return Math.round(b.position.y) - Math.round(a.position.y)
+        }
+        return Math.round(a.position.x) - Math.round(b.position.x)
+      } else {
+        // R/L: sort by y (desc), then z (asc for R, desc for L)
+        if (Math.round(b.position.y) !== Math.round(a.position.y)) {
+          return Math.round(b.position.y) - Math.round(a.position.y)
+        }
+        return face === 'R' 
+          ? Math.round(a.position.z) - Math.round(b.position.z)
+          : Math.round(b.position.z) - Math.round(a.position.z)
+      }
+    })
+    
+    // Fill the 3x3 grid
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 3; col++) {
+        const idx = row * 3 + col
+        const cubelet = faceCubelets[idx]
+        const color = cubelet ? getFaceColor(cubelet, face) : COLORS.black
+        state[face][row][col] = getColorLetter(color)
+      }
+    }
+  }
+  
+  return state
+}
+
 // Exposed methods for external control
 export interface RubikCubeHandle {
   rotate: (face: Face, prime?: boolean) => void
   shuffle: () => void
   reset: () => void
   isAnimating: () => boolean
+  getState: () => CubeState
 }
 
 const ROTATION_SPEED = 6 // radians per second
@@ -254,7 +394,8 @@ const RubikCube = forwardRef<RubikCubeHandle>(function RubikCube(_, ref) {
       setCubelets(createInitialCubelets())
     },
     isAnimating: () => rotation !== null,
-  }), [rotation, startRotation])
+    getState: () => getCubeState(cubelets),
+  }), [rotation, startRotation, cubelets])
 
   // Calculate animation rotation for each cubelet
   const getAnimationRotation = (cubeletId: number) => {
