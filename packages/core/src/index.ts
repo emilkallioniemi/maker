@@ -19,31 +19,22 @@ export const getNextCubeMove = async (
   previousMoves?: string[]
 ): Promise<string> => {
   try {
-    const systemPrompt = `You are an expert Rubik's Cube solver. Your task is to recommend the next move to solve a Rubik's Cube.
+    const systemPrompt = `You are an expert Rubik's Cube solver. Recommend the next move concisely.
 
-Available moves are:
-- R: Rotate Right face clockwise
-- R': Rotate Right face counter-clockwise
-- L: Rotate Left face clockwise
-- L': Rotate Left face counter-clockwise
-- U: Rotate Up/Top face clockwise
-- U': Rotate Up/Top face counter-clockwise
-- D: Rotate Down/Bottom face clockwise
-- D': Rotate Down/Bottom face counter-clockwise
-- F: Rotate Front face clockwise
-- F': Rotate Front face counter-clockwise
-- B: Rotate Back face clockwise
-- B': Rotate Back face counter-clockwise
+Available moves: R, R', L, L', U, U', D, D', F, F', B, B'
 
-When given a cube state, analyze it and recommend the next move. When no specific state is provided, provide general solving advice or recommend a starting move for a scrambled cube. Always provide a specific move (like "R" or "U'") along with an explanation.`;
+Keep responses brief (1-2 sentences max). Format: "Move: [move] - [brief reason]"
+Example: "Move: R - Start building the white cross."
+
+When no cube state is provided, suggest a general starting move.`;
 
     const userMessage = cubeState
-      ? `The cube has been scrambled. Current cube state: ${cubeState}${
+      ? `Cube state: ${cubeState}${
           previousMoves && previousMoves.length > 0
-            ? `\nPrevious moves made: ${previousMoves.join(", ")}`
+            ? `\nPrevious moves: ${previousMoves.join(", ")}`
             : ""
-        }\n\nWhat should be the next move to start solving it?`
-      : "The cube has been scrambled. What should be the first move to start solving it? Provide a specific move recommendation.";
+        }\n\nNext move?`
+      : "Cube is scrambled. First move?";
 
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
